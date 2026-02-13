@@ -9,12 +9,15 @@ let filteredJobs = [];
 let savedJobIds = [];
 let userPreferences = null;
 let showOnlyMatches = false;
+let jobStatus = {}; // { jobId: status }
+let statusHistory = []; // Array of { jobId, status, timestamp }
 let currentFilters = {
     keyword: '',
     location: 'all',
     mode: 'all',
     experience: 'all',
     source: 'all',
+    status: 'all',
     sort: 'latest'
 };
 
@@ -26,6 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load saved jobs from localStorage
     const saved = localStorage.getItem('savedJobs');
     savedJobIds = saved ? JSON.parse(saved) : [];
+
+    // Load job status from localStorage
+    const status = localStorage.getItem('jobTrackerStatus');
+    jobStatus = status ? JSON.parse(status) : {};
+
+    // Load status history from localStorage
+    const history = localStorage.getItem('jobTrackerStatusHistory');
+    statusHistory = history ? JSON.parse(history) : [];
 
     // Load user preferences from localStorage
     const prefs = localStorage.getItem('jobTrackerPreferences');
@@ -283,6 +294,16 @@ function createFilterBar() {
             </div>
             
             <div class="filter-group">
+                <select id="filter-status" class="filter-select" onchange="handleFilterChange('status', this.value)">
+                    <option value="all">All Status</option>
+                    <option value="Not Applied" ${currentFilters.status === 'Not Applied' ? 'selected' : ''}>Not Applied</option>
+                    <option value="Applied" ${currentFilters.status === 'Applied' ? 'selected' : ''}>Applied</option>
+                    <option value="Rejected" ${currentFilters.status === 'Rejected' ? 'selected' : ''}>Rejected</option>
+                    <option value="Selected" ${currentFilters.status === 'Selected' ? 'selected' : ''}>Selected</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
                 <select id="filter-sort" class="filter-select" onchange="handleFilterChange('sort', this.value)">
                     ${sortOptions}
                 </select>
@@ -301,6 +322,10 @@ function createJobCard(job) {
     const matchScoreBadge = userPreferences && job.matchScore !== undefined ? `
         <span class="match-badge ${getMatchScoreBadgeClass(job.matchScore)}">${job.matchScore}%</span>
     ` : '';
+
+    // Get current status (default to "Not Applied")
+    const currentStatus = jobStatus[job.id] || 'Not Applied';
+    const statusClass = getStatusClass(currentStatus);
 
     return `
         <div class="job-card">
@@ -333,6 +358,16 @@ function createJobCard(job) {
             </div>
             
             <div class="job-card__salary">${job.salaryRange}</div>
+            
+            <div class="job-card__status">
+                <label class="status-label">Status:</label>
+                <div class="status-buttons">
+                    <button class="status-btn ${currentStatus === 'Not Applied' ? 'status-btn--active status-btn--neutral' : 'status-btn--neutral'}" onclick="changeJobStatus('${job.id}', 'Not Applied')">Not Applied</button>
+                    <button class="status-btn ${currentStatus === 'Applied' ? 'status-btn--active status-btn--blue' : 'status-btn--blue'}" onclick="changeJobStatus('${job.id}', 'Applied')">Applied</button>
+                    <button class="status-btn ${currentStatus === 'Rejected' ? 'status-btn--active status-btn--red' : 'status-btn--red'}" onclick="changeJobStatus('${job.id}', 'Rejected')">Rejected</button>
+                    <button class="status-btn ${currentStatus === 'Selected' ? 'status-btn--active status-btn--green' : 'status-btn--green'}" onclick="changeJobStatus('${job.id}', 'Selected')">Selected</button>
+                </div>
+            </div>
             
             <div class="job-card__actions">
                 <button class="btn btn--secondary btn--small" onclick="viewJob('${job.id}')">View</button>
@@ -506,6 +541,33 @@ function renderDigest(digest, date, isExisting) {
                         <p class="digest-note">Demo Mode: Daily 9AM trigger simulated manually</p>
                     </div>
                 </div>
+                
+                ${statusHistory.length > 0 ? `
+                    <div class="digest-card digest-card--status">
+                        <div class="digest-header">
+                            <h2 class="digest-header__title">Recent Status Updates</h2>
+                        </div>
+                        
+                        <div class="status-updates">
+                            ${statusHistory.slice(0, 10).map(entry => {
+        const timeAgo = getTimeAgo(entry.timestamp);
+        const statusClass = getStatusClass(entry.status);
+        return `
+                                    <div class="status-update">
+                                        <div class="status-update__content">
+                                            <h4 class="status-update__title">${entry.title}</h4>
+                                            <p class="status-update__company">${entry.company}</p>
+                                        </div>
+                                        <div class="status-update__meta">
+                                            <span class="status-badge ${statusClass}">${entry.status}</span>
+                                            <span class="status-update__time">${timeAgo}</span>
+                                        </div>
+                                    </div>
+                                `;
+    }).join('')}
+                        </div>
+                    </div>
+                ` : ''}
                 
                 <div class="digest-actions">
                     <button class="btn btn--secondary" onclick="copyDigestToClipboard()">Copy Digest to Clipboard</button>
@@ -764,6 +826,14 @@ function applyFilters() {
             return false;
         }
 
+        // Status filter
+        if (currentFilters.status !== 'all') {
+            const jobCurrentStatus = jobStatus[job.id] || 'Not Applied';
+            if (jobCurrentStatus !== currentFilters.status) {
+                return false;
+            }
+        }
+
         return true;
     });
 
@@ -866,6 +936,109 @@ function toggleSaveJob(jobId) {
 
 function applyJob(url) {
     window.open(url, '_blank');
+}
+
+// ============================================
+// STATUS MANAGEMENT FUNCTIONS
+// ============================================
+
+function changeJobStatus(jobId, newStatus) {
+    // Update status
+    jobStatus[jobId] = newStatus;
+
+    // Save to localStorage
+    localStorage.setItem('jobTrackerStatus', JSON.stringify(jobStatus));
+
+    // Add to history if status is Applied, Rejected, or Selected
+    if (['Applied', 'Rejected', 'Selected'].includes(newStatus)) {
+        const job = allJobs.find(j => j.id === jobId);
+        if (job) {
+            const historyEntry = {
+                jobId: jobId,
+                title: job.title,
+                company: job.company,
+                status: newStatus,
+                timestamp: new Date().toISOString()
+            };
+
+            // Add to beginning of array
+            statusHistory.unshift(historyEntry);
+
+            // Keep only last 20 entries
+            if (statusHistory.length > 20) {
+                statusHistory = statusHistory.slice(0, 20);
+            }
+
+            // Save to localStorage
+            localStorage.setItem('jobTrackerStatusHistory', JSON.stringify(statusHistory));
+
+            // Show toast notification
+            showToast(`Status updated: ${newStatus}`);
+        }
+    }
+
+    // Re-render current page to update UI
+    const currentPath = window.location.pathname === '/dashboard' ? '/' : window.location.pathname;
+    renderRoute(currentPath);
+}
+
+function getStatusClass(status) {
+    switch (status) {
+        case 'Not Applied':
+            return 'status-btn--neutral';
+        case 'Applied':
+            return 'status-btn--blue';
+        case 'Rejected':
+            return 'status-btn--red';
+        case 'Selected':
+            return 'status-btn--green';
+        default:
+            return 'status-btn--neutral';
+    }
+}
+
+function showToast(message) {
+    // Remove existing toast if any
+    const existingToast = document.querySelector('.toast');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+
+    // Add to body
+    document.body.appendChild(toast);
+
+    // Show toast with animation
+    setTimeout(() => {
+        toast.classList.add('toast--show');
+    }, 10);
+
+    // Auto-dismiss after 3 seconds
+    setTimeout(() => {
+        toast.classList.remove('toast--show');
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 3000);
+}
+
+function getTimeAgo(timestamp) {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return past.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // ============================================
