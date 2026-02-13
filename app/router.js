@@ -12,6 +12,11 @@ let showOnlyMatches = false;
 let jobStatus = {}; // { jobId: status }
 let statusHistory = []; // Array of { jobId, status, timestamp }
 let testChecklist = {}; // { testId: boolean }
+let proofArtifacts = {
+    lovableLink: '',
+    githubLink: '',
+    deployedLink: ''
+};
 let currentFilters = {
     keyword: '',
     location: 'all',
@@ -42,6 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load test checklist from localStorage
     const checklist = localStorage.getItem('jobTrackerTestChecklist');
     testChecklist = checklist ? JSON.parse(checklist) : {};
+
+    // Load proof artifacts from localStorage
+    const artifacts = localStorage.getItem('jobTrackerProofArtifacts');
+    proofArtifacts = artifacts ? JSON.parse(artifacts) : {
+        lovableLink: '',
+        githubLink: '',
+        deployedLink: ''
+    };
 
     // Load user preferences from localStorage
     const prefs = localStorage.getItem('jobTrackerPreferences');
@@ -796,37 +809,147 @@ function updateLockStatus() {
 
 
 function createProofPage() {
+    const steps = [
+        { id: 1, label: 'Job Dashboard Interface', status: 'Completed' },
+        { id: 2, label: 'Job Cards Rendering', status: 'Completed' },
+        { id: 3, label: 'Filtering System', status: 'Completed' },
+        { id: 4, label: 'Global State Management', status: 'Completed' },
+        { id: 5, label: 'Intelligent Matching Engine', status: 'Completed' },
+        { id: 6, label: 'Digest Generation System', status: 'Completed' },
+        { id: 7, label: 'Status Tracking System', status: 'Completed' },
+        { id: 8, label: 'Built-in Test Checklist', status: 'Completed' }
+    ];
+
+    const hasLinks = proofArtifacts.lovableLink && proofArtifacts.githubLink && proofArtifacts.deployedLink;
+    const allTestsPassed = Object.keys(testChecklist).length === 10 && Object.values(testChecklist).every(v => v);
+    const canShip = hasLinks && allTestsPassed;
+
+    let statusBadgeClass = 'status-badge--not-started';
+    let statusText = 'Not Started';
+
+    if (hasLinks || allTestsPassed) {
+        statusBadgeClass = 'status-badge--in-progress';
+        statusText = 'In Progress';
+    }
+
+    if (canShip) {
+        statusBadgeClass = 'status-badge--shipped';
+        statusText = 'Shipped';
+    }
+
+    const submissionText = generateSubmissionText();
+
     return `
         <div class="proof-page">
             <div class="page-header">
-                <h1 class="page-header__title">Proof</h1>
-                <p class="page-header__subtitle">Artifact collection and verification</p>
+                <h1 class="page-header__title">Proof & Submission</h1>
+                <p class="page-header__subtitle">Final validation for Project 1</p>
             </div>
             
-            <div class="proof-placeholder">
-                <p class="proof-placeholder__message">This section will collect proof artifacts as you build the application.</p>
-                
-                <div class="proof-checklist">
-                    <label class="proof-item">
-                        <input type="checkbox" class="proof-checkbox" checked>
-                        <span>Settings configured</span>
-                    </label>
-                    <label class="proof-item">
-                        <input type="checkbox" class="proof-checkbox" checked>
-                        <span>Jobs loaded</span>
-                    </label>
-                    <label class="proof-item">
-                        <input type="checkbox" class="proof-checkbox" ${userPreferences ? 'checked' : ''}>
-                        <span>Matching working</span>
-                    </label>
-                    <label class="proof-item">
-                        <input type="checkbox" class="proof-checkbox">
-                        <span>Digest generated</span>
-                    </label>
+            <div class="proof-container">
+                <!-- Section A: Step Completion Summary -->
+                <div class="proof-section">
+                    <h2 class="proof-section__title">A) Step Completion Summary</h2>
+                    <div class="step-list">
+                        ${steps.map(step => `
+                            <div class="step-item">
+                                <span class="step-status-icon">✓</span>
+                                <span class="step-label">${step.label}</span>
+                                <span class="step-status">${step.status}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Section B: Artifact Collection -->
+                <div class="proof-section">
+                    <h2 class="proof-section__title">B) Artifact Collection</h2>
+                    <div class="artifact-form">
+                        <div class="form-group">
+                            <label class="form-label">Lovable Project Link</label>
+                            <input type="url" class="form-input artifact-input" 
+                                   placeholder="https://lovable.dev/..."
+                                   value="${proofArtifacts.lovableLink}"
+                                   onchange="saveProofArtifacts('lovableLink', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">GitHub Repository Link</label>
+                            <input type="url" class="form-input artifact-input" 
+                                   placeholder="https://github.com/..."
+                                   value="${proofArtifacts.githubLink}"
+                                   onchange="saveProofArtifacts('githubLink', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Deployed URL</label>
+                            <input type="url" class="form-input artifact-input" 
+                                   placeholder="https://..."
+                                   value="${proofArtifacts.deployedLink}"
+                                   onchange="saveProofArtifacts('deployedLink', this.value)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shipping Status -->
+                <div class="proof-section">
+                    <div class="shipping-status">
+                        <h2 class="proof-section__title" style="margin-bottom:0">Project Status</h2>
+                        <span class="status-badge ${statusBadgeClass}">${statusText}</span>
+                    </div>
+                    
+                    ${!allTestsPassed ? `<p class="status-warning">⚠️ Complete all test checklist items to ship.</p>` : ''}
+                    ${!hasLinks ? `<p class="status-warning">⚠️ Provide all 3 artifact links to ship.</p>` : ''}
+                    
+                    ${canShip ? `
+                        <div class="completion-message">
+                            <span class="completion-icon">✨</span>
+                            Project 1 Shipped Successfully.
+                        </div>
+                    ` : ''}
+                </div>
+
+                <!-- Final Submission Export -->
+                <div class="proof-section">
+                    <h2 class="proof-section__title">Final Submission Export</h2>
+                    <div class="submission-area">
+                        <textarea class="submission-text" readonly>${submissionText}</textarea>
+                        <button class="btn btn--primary" onclick="copySubmissionText()">Copy Final Submission</button>
+                    </div>
                 </div>
             </div>
         </div>
     `;
+}
+
+function saveProofArtifacts(key, value) {
+    proofArtifacts[key] = value;
+    localStorage.setItem('jobTrackerProofArtifacts', JSON.stringify(proofArtifacts));
+    renderRoute('/proof');
+}
+
+function generateSubmissionText() {
+    return `Job Notification Tracker — Final Submission
+
+Lovable Project:
+${proofArtifacts.lovableLink || '[Pending]'}
+
+GitHub Repository:
+${proofArtifacts.githubLink || '[Pending]'}
+
+Live Deployment:
+${proofArtifacts.deployedLink || '[Pending]'}
+
+Core Features:
+- Intelligent match scoring
+- Daily digest simulation
+- Status tracking
+- Test checklist enforced`;
+}
+
+function copySubmissionText() {
+    const textarea = document.querySelector('.submission-text');
+    textarea.select();
+    document.execCommand('copy');
+    alert('Submission text copied to clipboard.');
 }
 
 // ============================================
