@@ -11,6 +11,7 @@ let userPreferences = null;
 let showOnlyMatches = false;
 let jobStatus = {}; // { jobId: status }
 let statusHistory = []; // Array of { jobId, status, timestamp }
+let testChecklist = {}; // { testId: boolean }
 let currentFilters = {
     keyword: '',
     location: 'all',
@@ -37,6 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load status history from localStorage
     const history = localStorage.getItem('jobTrackerStatusHistory');
     statusHistory = history ? JSON.parse(history) : [];
+
+    // Load test checklist from localStorage
+    const checklist = localStorage.getItem('jobTrackerTestChecklist');
+    testChecklist = checklist ? JSON.parse(checklist) : {};
 
     // Load user preferences from localStorage
     const prefs = localStorage.getItem('jobTrackerPreferences');
@@ -604,7 +609,7 @@ function createSettingsPage() {
             <div class="settings-form">
                 <div class="form-group">
                     <label class="form-label">Role Keywords</label>
-                    <input type="text" id="roleKeywords" class="form-input" placeholder="e.g. Frontend Developer, React Engineer, SDE" value="${roleKeywordsValue}">
+                    <input type="text" id="roleKeywords" class="form-input" placeholder="e.g. Frontend Developer, React, UI Engineer" value="${roleKeywordsValue}">
                     <p class="form-hint">Enter job titles or keywords you're interested in (comma-separated)</p>
                 </div>
                 
@@ -672,6 +677,115 @@ function createSettingsPage() {
         </div>
     `;
 }
+
+function createTestChecklistPage() {
+    const tests = [
+        { id: 'test_prefs', label: 'Preferences persist after refresh', hint: 'Change settings, refresh page, verify settings remain.' },
+        { id: 'test_score', label: 'Match score calculates correctly', hint: 'Verify job scores change based on updated preferences.' },
+        { id: 'test_toggle', label: '"Show only matches" toggle works', hint: 'Enable toggle on dashboard, verify low score jobs disappear.' },
+        { id: 'test_save', label: 'Save job persists after refresh', hint: 'Save a job, refresh, go to Saved Jobs page.' },
+        { id: 'test_apply', label: 'Apply opens in new tab', hint: 'Click Apply, verify new tab opens with correct URL.' },
+        { id: 'test_status', label: 'Status update persists after refresh', hint: 'Change job status, refresh, verify status remains.' },
+        { id: 'test_filter', label: 'Status filter works correctly', hint: 'Filter by "Applied", verify only applied jobs show.' },
+        { id: 'test_digest_gen', label: 'Digest generates top 10 by score', hint: 'Generate digest, verify high scoring jobs are listed first.' },
+        { id: 'test_digest_persist', label: 'Digest persists for the day', hint: 'Refresh digest page, verify same digest loads without regenerating.' },
+        { id: 'test_console', label: 'No console errors on main pages', hint: 'Check browser console (F12) while navigating.' }
+    ];
+
+    const passedCount = tests.filter(t => testChecklist[t.id]).length;
+    const allPassed = passedCount === tests.length;
+
+    // Ensure testChecklist is synced (optional cleanup could go here)
+
+    const checklistHtml = tests.map(test => `
+        <div class="checklist-item ${testChecklist[test.id] ? 'checklist-item--checked' : ''}">
+            <label class="checkbox-label">
+                <input type="checkbox" 
+                       onchange="toggleTestItem('${test.id}', this.checked)" 
+                       ${testChecklist[test.id] ? 'checked' : ''}>
+                <span class="checklist-text">${test.label}</span>
+            </label>
+            ${test.hint ? `<div class="checklist-hint" title="${test.hint}">?</div>` : ''}
+        </div>
+    `).join('');
+
+    return `
+        <div class="test-page">
+            <div class="page-header">
+                <h1 class="page-header__title">Test Checklist</h1>
+                <p class="page-header__subtitle">Verify all features before shipping</p>
+            </div>
+            
+            <div class="test-container">
+                <div class="test-summary ${allPassed ? 'test-summary--success' : ''}">
+                    <h2 class="test-summary__title">Tests Passed: ${passedCount} / ${tests.length}</h2>
+                    ${!allPassed ? '<p class="test-summary__warning">⚠️ Resolve all issues before shipping.</p>' : '<p class="test-summary__success">✅ All systems go! Ready to ship.</p>'}
+                </div>
+                
+                <div class="checklist-container">
+                    ${checklistHtml}
+                </div>
+                
+                <div class="test-actions">
+                    <button class="btn btn--secondary btn--small" onclick="resetTestStatus()">Reset Test Status</button>
+                    ${allPassed ? `<button class="btn btn--primary" onclick="navigateTo('/jt/08-ship')">Proceed to Ship</button>` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function toggleTestItem(testId, isChecked) {
+    testChecklist[testId] = isChecked;
+    localStorage.setItem('jobTrackerTestChecklist', JSON.stringify(testChecklist));
+    renderRoute('/jt/07-test');
+
+    // Check if we need to unlock nav
+    updateLockStatus();
+}
+
+function resetTestStatus() {
+    if (confirm('Are you sure you want to reset all test progress?')) {
+        testChecklist = {};
+        localStorage.removeItem('jobTrackerTestChecklist');
+        renderRoute('/jt/07-test');
+        updateLockStatus();
+    }
+}
+
+function updateLockStatus() {
+    const navLinks = document.querySelectorAll('.nav__link');
+    const tests = [
+        'test_prefs', 'test_score', 'test_toggle', 'test_save', 'test_apply',
+        'test_status', 'test_filter', 'test_digest_gen', 'test_digest_persist', 'test_console'
+    ];
+    const allPassed = tests.every(id => testChecklist[id]);
+
+    navLinks.forEach(link => {
+        if (link.getAttribute('onclick') && link.getAttribute('onclick').includes('/jt/08-ship')) {
+            if (allPassed) {
+                link.classList.remove('nav__link--locked');
+                // Remove lock icon if present
+                const lockIcon = link.querySelector('.lock-icon');
+                if (lockIcon) lockIcon.remove();
+            } else {
+                if (!link.classList.contains('nav__link--locked')) {
+                    link.classList.add('nav__link--locked');
+                }
+                // Add lock icon if not present
+                if (!link.querySelector('.lock-icon')) {
+                    const icon = document.createElement('span');
+                    icon.className = 'lock-icon';
+                    icon.textContent = '🔒';
+                    icon.style.marginLeft = 'auto';
+                    icon.style.fontSize = '12px';
+                    link.appendChild(icon);
+                }
+            }
+        }
+    });
+}
+
 
 function createProofPage() {
     return `
@@ -1196,11 +1310,25 @@ function createEmailDraft() {
 // ============================================
 
 function navigateTo(path) {
+    // Check for ship lock
+    if (path === '/jt/08-ship' && !checkShipAllowed()) {
+        alert('⚠️ functionality locked! Complete the test checklist first.');
+        return;
+    }
+
     const normalizedPath = path === '/dashboard' ? '/' : path;
     window.history.pushState({}, '', normalizedPath);
     renderRoute(normalizedPath);
     updateActiveLink(normalizedPath);
     closeMobileMenu();
+}
+
+function checkShipAllowed() {
+    const tests = [
+        'test_prefs', 'test_score', 'test_toggle', 'test_save', 'test_apply',
+        'test_status', 'test_filter', 'test_digest_gen', 'test_digest_persist', 'test_console'
+    ];
+    return tests.every(id => testChecklist[id]);
 }
 
 function renderRoute(path) {

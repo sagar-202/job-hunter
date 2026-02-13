@@ -1357,3 +1357,98 @@
         align-items: center;
     }
 }
+
+/* ============================================
+   TEST CHECKLIST PAGE
+   ============================================ */
+
+.test-page {
+    max-width: 800px;
+}
+
+.test-summary {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+    text-align: center;
+}
+
+.test-summary--success {
+    background-color: rgba(16, 185, 129, 0.1);
+    border-color: var(--color-success);
+}
+
+.test-summary__title {
+    margin: 0 0 var(--space-xs) 0;
+    font-size: var(--font-size-h3);
+}
+
+.test-summary__warning {
+    color: var(--color-warning);
+    margin: 0;
+    font-weight: var(--font-weight-medium);
+}
+
+.test-summary__success {
+    color: var(--color-success);
+    margin: 0;
+    font-weight: var(--font-weight-bold);
+}
+
+.checklist-container {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.checklist-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.checklist-item:last-child {
+    border-bottom: none;
+}
+
+.checklist-item--checked .checklist-text {
+    text-decoration: line-through;
+    color: var(--color-text-secondary);
+}
+
+.checklist-text {
+    margin-left: var(--space-sm);
+}
+
+.checklist-hint {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-small);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+}
+
+.test-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-md);
+}
+
+.nav__link--locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+    position: relative;
+    pointer-events: none;
+    /* Prevent clicking but javascript check is primary */
+}
