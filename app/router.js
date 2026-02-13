@@ -166,6 +166,14 @@ const routes = {
     '/proof': {
         title: 'Proof',
         render: () => createProofPage()
+    },
+    '/jt/07-test': {
+        title: 'Test Checklist',
+        render: () => createTestChecklistPage()
+    },
+    '/jt/08-ship': {
+        title: 'Ship',
+        render: () => createDashboardPage() // Placeholder for ship page, or createShipPage if it exists
     }
 };
 
